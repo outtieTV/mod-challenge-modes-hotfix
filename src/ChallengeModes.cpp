@@ -409,13 +409,14 @@ public:
 
     void OnPlayerLogin(Player* player) override
     {
-        if (!sChallengeModes->challengeEnabledForPlayer(SETTING_HARDCORE, player) || !sChallengeModes->challengeEnabledForPlayer(HARDCORE_DEAD, player))
+        if (!sChallengeModes->challengeEnabledForPlayer(SETTING_HARDCORE, player) ||
+            !sChallengeModes->challengeEnabledForPlayer(HARDCORE_DEAD, player))
         {
             return;
         }
 
         player->KillPlayer();
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer(std::string("Hardcore character has died"));
     }
 
     void OnPlayerReleasedGhost(Player* player) override
@@ -426,7 +427,7 @@ public:
         }
 
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer(std::string("Hardcore character has died"));
     }
 
     void OnPlayerPVPKill(Player* /*killer*/, Player* killed) override
@@ -449,7 +450,7 @@ public:
         killed->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
     }
 
-    // FIXED SIGNATURE
+    // FIXED FOR CURRENT AZEROTHCORE API
     void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool& /*applySickness*/) override
     {
         if (!sChallengeModes->challengeEnabledForPlayer(SETTING_HARDCORE, player))
@@ -457,10 +458,9 @@ public:
             return;
         }
 
-        // A better implementation is to not allow the resurrect but this will need a new hook added first
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
         player->KillPlayer();
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer(std::string("Hardcore character has died"));
     }
 
     void OnPlayerGiveXP(Player* player, uint32& amount, Unit* victim, uint8 xpSource) override
@@ -485,17 +485,27 @@ public:
         {
             return;
         }
+
         for (uint8 i = 0; i < EQUIPMENT_SLOT_END; ++i)
         {
             if (Item* pItem = player->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
             {
                 if (pItem->GetTemplate() && !pItem->IsEquipped())
                     continue;
+
                 uint8 slot = pItem->GetSlot();
-                ChatHandler(player->GetSession()).PSendSysMessage("|cffDA70D6%s |cffffffff|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r", "你已失去你的", pItem->GetEntry(), pItem->GetTemplate()->Name1.c_str());
+
+                ChatHandler(player->GetSession()).PSendSysMessage(
+                    "|cffDA70D6%s |cffffffff|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r",
+                    "You have lost your",
+                    pItem->GetEntry(),
+                    pItem->GetTemplate()->Name1.c_str()
+                );
+
                 player->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
             }
         }
+
         player->SetMoney(0);
     }
 
@@ -632,7 +642,7 @@ class ChallengeMode_IronMan : public ChallengeMode
 public:
     ChallengeMode_IronMan() : ChallengeMode("ChallengeMode_IronMan", SETTING_IRON_MAN) {}
 
-    // FIXED SIGNATURE
+    // FIXED FOR CURRENT AZEROTHCORE API
     void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool& /*applySickness*/) override
     {
         if (!sChallengeModes->challengeEnabledForPlayer(SETTING_IRON_MAN, player))
@@ -640,7 +650,6 @@ public:
             return;
         }
 
-        // A better implementation is to not allow the resurrect but this will need a new hook added first
         player->KillPlayer();
     }
 
@@ -656,7 +665,7 @@ public:
             return;
         }
 
-        player->SetFreeTalentPoints(0); // Remove all talent points
+        player->SetFreeTalentPoints(0);
         ChallengeMode::OnPlayerLevelChanged(player, oldlevel);
     }
 
@@ -667,7 +676,7 @@ public:
             return;
         }
 
-        player->SetFreeTalentPoints(0); // Remove all talent points
+        player->SetFreeTalentPoints(0);
     }
 
     bool OnPlayerCanEquipItem(Player* player, uint8 /*slot*/, uint16& /*dest*/, Item* pItem, bool /*swap*/, bool /*not_loading*/) override
@@ -687,7 +696,6 @@ public:
             return true;
         }
 
-        // Are there any exceptions in WotLK? If so need to be added here
         return false;
     }
 
@@ -698,7 +706,6 @@ public:
             return;
         }
 
-        // These professions are class skills so they are always acceptable
         switch (spellID)
         {
             case RUNEFORGING:
@@ -710,13 +717,10 @@ public:
                 break;
         }
 
-        // Do not allow learning any trade skills
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellID);
 
         if (!spellInfo)
-        {
             return;
-        }
 
         bool shouldForget = false;
 
@@ -741,7 +745,6 @@ public:
             return true;
         }
 
-        // Do not allow using elixir, potion, or flask
         if (proto->Class == ITEM_CLASS_CONSUMABLE &&
             (proto->SubClass == ITEM_SUBCLASS_POTION ||
              proto->SubClass == ITEM_SUBCLASS_ELIXIR ||
@@ -750,17 +753,15 @@ public:
             return false;
         }
 
-        // Do not allow food that gives food buffs
-        if (proto->Class == ITEM_CLASS_CONSUMABLE && proto->SubClass == ITEM_SUBCLASS_FOOD)
+        if (proto->Class == ITEM_CLASS_CONSUMABLE &&
+            proto->SubClass == ITEM_SUBCLASS_FOOD)
         {
             for (const auto& Spell : proto->Spells)
             {
                 SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(Spell.SpellId);
 
                 if (!spellInfo)
-                {
                     continue;
-                }
 
                 for (uint8 i = 0; i < 3; i++)
                 {
@@ -822,50 +823,74 @@ public:
     };
 
     bool OnGossipHello(Player* player, GameObject* go) override
-    {
-        if (sChallengeModes->challengeEnabled(SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用极限模式", 0, SETTING_HARDCORE);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_SEMI_HARDCORE) && !playerSettingEnabled(player, SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用半极限模式", 0, SETTING_SEMI_HARDCORE);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_SELF_CRAFTED) && !playerSettingEnabled(player, SETTING_SELF_CRAFTED) && !playerSettingEnabled(player, SETTING_IRON_MAN))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用自制装备模式", 0, SETTING_SELF_CRAFTED);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_ITEM_QUALITY_LEVEL) && !playerSettingEnabled(player, SETTING_ITEM_QUALITY_LEVEL))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用低品质装备模式", 0, SETTING_ITEM_QUALITY_LEVEL);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用慢速经验模式", 0, SETTING_SLOW_XP_GAIN);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_VERY_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用极慢经验模式", 0, SETTING_VERY_SLOW_XP_GAIN);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_QUEST_XP_ONLY) && !playerSettingEnabled(player, SETTING_QUEST_XP_ONLY))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用任务经验专属模式", 0, SETTING_QUEST_XP_ONLY);
-        }
-        if (sChallengeModes->challengeEnabled(SETTING_IRON_MAN) && !playerSettingEnabled(player, SETTING_IRON_MAN) && !playerSettingEnabled(player, SETTING_SELF_CRAFTED))
-        {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用铁人模式", 0, SETTING_IRON_MAN);
-        }
-        SendGossipMenuFor(player, 12669, go->GetGUID());
-        return true;
-    }
+	{
+		if (sChallengeModes->challengeEnabled(SETTING_HARDCORE) &&
+			!playerSettingEnabled(player, SETTING_HARDCORE) &&
+			!playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Hardcore Mode", 0, SETTING_HARDCORE);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_SEMI_HARDCORE) &&
+			!playerSettingEnabled(player, SETTING_HARDCORE) &&
+			!playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Semi-Hardcore Mode", 0, SETTING_SEMI_HARDCORE);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_SELF_CRAFTED) &&
+			!playerSettingEnabled(player, SETTING_SELF_CRAFTED) &&
+			!playerSettingEnabled(player, SETTING_IRON_MAN))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Self-Crafted Mode", 0, SETTING_SELF_CRAFTED);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_ITEM_QUALITY_LEVEL) &&
+			!playerSettingEnabled(player, SETTING_ITEM_QUALITY_LEVEL))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Low Quality Equipment Mode", 0, SETTING_ITEM_QUALITY_LEVEL);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_SLOW_XP_GAIN) &&
+			!playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) &&
+			!playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Slow XP Mode", 0, SETTING_SLOW_XP_GAIN);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_VERY_SLOW_XP_GAIN) &&
+			!playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) &&
+			!playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Very Slow XP Mode", 0, SETTING_VERY_SLOW_XP_GAIN);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_QUEST_XP_ONLY) &&
+			!playerSettingEnabled(player, SETTING_QUEST_XP_ONLY))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Quest XP Only Mode", 0, SETTING_QUEST_XP_ONLY);
+		}
+
+		if (sChallengeModes->challengeEnabled(SETTING_IRON_MAN) &&
+			!playerSettingEnabled(player, SETTING_IRON_MAN) &&
+			!playerSettingEnabled(player, SETTING_SELF_CRAFTED))
+		{
+			AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Enable Iron Man Mode", 0, SETTING_IRON_MAN);
+		}
+
+		SendGossipMenuFor(player, 12669, go->GetGUID());
+		return true;
+	}
 
     bool OnGossipSelect(Player* player, GameObject* /*go*/, uint32 /*sender*/, uint32 action) override
-    {
-        player->UpdatePlayerSetting("mod-challenge-modes", action, 1);
-        ChatHandler(player->GetSession()).PSendSysMessage("挑战模式已启用。");
-        CloseGossipMenuFor(player);
-        return true;
-    }
+	{
+		player->UpdatePlayerSetting("mod-challenge-modes", action, 1);
+
+		ChatHandler(player->GetSession()).PSendSysMessage("Challenge mode enabled.");
+
+		CloseGossipMenuFor(player);
+		return true;
+	}
 
     GameObjectAI* GetAI(GameObject* object) const override
     {
