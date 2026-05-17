@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
  */
 
@@ -413,6 +413,7 @@ public:
         {
             return;
         }
+
         player->KillPlayer();
         player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
     }
@@ -423,6 +424,7 @@ public:
         {
             return;
         }
+
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
         player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
     }
@@ -433,6 +435,7 @@ public:
         {
             return;
         }
+
         killed->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
     }
 
@@ -442,15 +445,18 @@ public:
         {
             return;
         }
+
         killed->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
     }
 
-    void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool /*applySickness*/) override
+    // FIXED SIGNATURE
+    void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool& /*applySickness*/) override
     {
         if (!sChallengeModes->challengeEnabledForPlayer(SETTING_HARDCORE, player))
         {
             return;
         }
+
         // A better implementation is to not allow the resurrect but this will need a new hook added first
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
         player->KillPlayer();
@@ -626,12 +632,14 @@ class ChallengeMode_IronMan : public ChallengeMode
 public:
     ChallengeMode_IronMan() : ChallengeMode("ChallengeMode_IronMan", SETTING_IRON_MAN) {}
 
-    void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool /*applySickness*/) override
+    // FIXED SIGNATURE
+    void OnPlayerResurrect(Player* player, float /*restore_percent*/, bool& /*applySickness*/) override
     {
         if (!sChallengeModes->challengeEnabledForPlayer(SETTING_IRON_MAN, player))
         {
             return;
         }
+
         // A better implementation is to not allow the resurrect but this will need a new hook added first
         player->KillPlayer();
     }
@@ -647,6 +655,7 @@ public:
         {
             return;
         }
+
         player->SetFreeTalentPoints(0); // Remove all talent points
         ChallengeMode::OnPlayerLevelChanged(player, oldlevel);
     }
@@ -657,6 +666,7 @@ public:
         {
             return;
         }
+
         player->SetFreeTalentPoints(0); // Remove all talent points
     }
 
@@ -666,6 +676,7 @@ public:
         {
             return true;
         }
+
         return pItem->GetTemplate()->Quality <= ITEM_QUALITY_NORMAL;
     }
 
@@ -675,6 +686,7 @@ public:
         {
             return true;
         }
+
         // Are there any exceptions in WotLK? If so need to be added here
         return false;
     }
@@ -685,6 +697,7 @@ public:
         {
             return;
         }
+
         // These professions are class skills so they are always acceptable
         switch (spellID)
         {
@@ -692,14 +705,21 @@ public:
             case POISONS:
             case BEAST_TRAINING:
                 return;
+
             default:
                 break;
         }
+
         // Do not allow learning any trade skills
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellID);
+
         if (!spellInfo)
+        {
             return;
+        }
+
         bool shouldForget = false;
+
         for (uint8 i = 0; i < 3; i++)
         {
             if (spellInfo->Effects[i].Effect == SPELL_EFFECT_TRADE_SKILL)
@@ -707,6 +727,7 @@ public:
                 shouldForget = true;
             }
         }
+
         if (shouldForget)
         {
             player->removeSpell(spellID, SPEC_MASK_ALL, false);
@@ -719,22 +740,27 @@ public:
         {
             return true;
         }
+
         // Do not allow using elixir, potion, or flask
         if (proto->Class == ITEM_CLASS_CONSUMABLE &&
-                (proto->SubClass == ITEM_SUBCLASS_POTION ||
-                proto->SubClass == ITEM_SUBCLASS_ELIXIR ||
-                proto->SubClass == ITEM_SUBCLASS_FLASK))
+            (proto->SubClass == ITEM_SUBCLASS_POTION ||
+             proto->SubClass == ITEM_SUBCLASS_ELIXIR ||
+             proto->SubClass == ITEM_SUBCLASS_FLASK))
         {
             return false;
         }
+
         // Do not allow food that gives food buffs
         if (proto->Class == ITEM_CLASS_CONSUMABLE && proto->SubClass == ITEM_SUBCLASS_FOOD)
         {
-            for (const auto & Spell : proto->Spells)
+            for (const auto& Spell : proto->Spells)
             {
                 SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(Spell.SpellId);
+
                 if (!spellInfo)
+                {
                     continue;
+                }
 
                 for (uint8 i = 0; i < 3; i++)
                 {
@@ -745,6 +771,7 @@ public:
                 }
             }
         }
+
         return true;
     }
 
@@ -754,6 +781,7 @@ public:
         {
             return true;
         }
+
         return false;
     }
 
@@ -763,9 +791,9 @@ public:
         {
             return true;
         }
+
         return false;
     }
-
 };
 
 class gobject_challenge_modes : public GameObjectScript
