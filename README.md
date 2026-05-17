@@ -1,5 +1,5 @@
 # AzerothCore Challenge Modes
-Challenge Modes Module for AzerothCore
+Challenge Modes Module for AzerothCore. I (outtieTV) hotfixed the c++ file so it should compile now.
 
 This module adds the following challenge modes:
 
